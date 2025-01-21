@@ -1,0 +1,5 @@
+__pycache__
+*py[doc]
+scribbles.py
+.venv
+.pytest_cache
