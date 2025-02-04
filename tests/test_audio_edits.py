@@ -49,42 +49,42 @@ def test_get_speaker_data():
 
 def test_generate_silence():
     audio_data = audio_edit.read_audio(test_audio)
-    silence_block = audio_edit.generate_silence(audio_data)
+    audio_buffer = audio_edit.generate_silence(audio_data)
 
     # assert all values in array are 0
-    assert not silence_block.any()
+    assert not audio_buffer.any()
 
 def test_write_speaker_data():
     audio_data = audio_edit.read_audio(test_audio)
-    silence_block = audio_edit.generate_silence(audio_data)
+    audio_buffer = audio_edit.generate_silence(audio_data)
     rttm = audio_edit.read_rttm(test_rttm)
     speakers = audio_edit.rttm_to_speaker_data(rttm)
     speaker0_data = speakers[0]
-    all_data_for_given_speaker = audio_edit.get_speaker_data(audio_data, speaker0_data)
+    individual_speaker_data = audio_edit.get_speaker_data(audio_data, speaker0_data)
 
     # write is done in place, assert array has some non-zero values
-    audio_edit.write_speaker_data(silence_block, all_data_for_given_speaker, speaker0_data, audio_data)
-    assert silence_block.any()
+    audio_edit.write_speaker_data(audio_buffer, individual_speaker_data, speaker0_data, audio_data)
+    assert audio_buffer.any()
 
     # assert the sample at the start is the same as the first sample of that speaker
     start_sample = int(speaker0_data.starts[0] * audio_data.samplerate)
-    assert silence_block[start_sample] == all_data_for_given_speaker[0][0]
+    assert audio_buffer[start_sample] == individual_speaker_data[0][0]
 
     # what happens if the speaker data is right at the end, is a timestamp accurate enough to fit the right samples?
 
 def test_write_fades():
     audio_data = audio_edit.read_audio(test_audio)
-    silence_block = audio_edit.generate_silence(audio_data)
+    audio_buffer = audio_edit.generate_silence(audio_data)
     rttm = audio_edit.read_rttm(test_rttm)
     speakers = audio_edit.rttm_to_speaker_data(rttm)
     speaker0_data = speakers[0]
-    all_data_for_given_speaker = audio_edit.get_speaker_data(audio_data, speaker0_data)
-    audio_edit.write_speaker_data(silence_block, all_data_for_given_speaker, speaker0_data, audio_data)
+    individual_speaker_data = audio_edit.get_speaker_data(audio_data, speaker0_data)
+    audio_edit.write_speaker_data(audio_buffer, individual_speaker_data, speaker0_data, audio_data)
 
-    previous = silence_block.copy()
-    audio_edit.write_fades(silence_block, speaker0_data, audio_data)
+    previous = audio_buffer.copy()
+    audio_edit.write_fades(audio_buffer, speaker0_data, audio_data)
 
-    assert not numpy.array_equal(previous, silence_block)
+    assert not numpy.array_equal(previous, audio_buffer)
     # I'm not sure how to test actual fades, but it sounds alright?
 
 
@@ -95,17 +95,17 @@ def test_write():
     SPEAKER = 1
 
     audio_data = audio_edit.read_audio(test_audio)
-    silence_block = audio_edit.generate_silence(audio_data)
     rttm = audio_edit.read_rttm(test_rttm)
     speakers = audio_edit.rttm_to_speaker_data(rttm)
-    individual_speaker_data = speakers[SPEAKER]
-    all_data_for_given_speaker = audio_edit.get_speaker_data(audio_data, individual_speaker_data)
-    audio_edit.write_speaker_data(silence_block, all_data_for_given_speaker, individual_speaker_data, audio_data)
+    individual_speaker_timecode = speakers[SPEAKER]
+    individual_speaker_data = audio_edit.get_speaker_data(audio_data, individual_speaker_timecode)
 
-    audio_edit.write_fades(silence_block, individual_speaker_data, audio_data)
+    audio_buffer = audio_edit.generate_silence(audio_data)
+    audio_edit.write_speaker_data(audio_buffer, individual_speaker_data, individual_speaker_timecode, audio_data)
+    audio_edit.write_fades(audio_buffer, individual_speaker_timecode, audio_data)
 
     output_path = audio_edit.construct_out_path(test_audio, SPEAKER)
-    audio_edit.write(silence_block, audio_data, output_path)
+    audio_edit.write(audio_buffer, audio_data, output_path)
 
     #assert files are the same length
-    assert audio_data.data.shape == silence_block.shape
+    assert audio_data.data.shape == audio_buffer.shape
