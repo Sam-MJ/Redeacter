@@ -78,13 +78,12 @@ def get_speaker_data(audio_data: AudioData, individual_speaker_data: SpeakerData
 def generate_silence(audio_data: AudioData) -> ndarray:
     # create silence block
     silence_samples_number = audio_data.data.shape[0]
-    print(type(silence_samples_number))
     shape = (int(silence_samples_number),) + audio_data.channels
     silence_block = numpy.zeros((shape), audio_data.dtype)
 
     return silence_block
 
-def write_speaker_data(silence_block, all_data_for_given_speaker: list[ndarray], individual_speaker_data: SpeakerData, audio_data: AudioData) -> numpy.ndarray:
+def write_speaker_data(silence_block: ndarray, all_data_for_given_speaker: list[ndarray], individual_speaker_data: SpeakerData, audio_data: AudioData) -> numpy.ndarray:
     """write each of the speaker data blocks onto the block of silence"""
     # assert list of timestamps is the same as the list of data blocks
     assert len(individual_speaker_data.starts) == len(all_data_for_given_speaker)
@@ -100,8 +99,9 @@ def write_speaker_data(silence_block, all_data_for_given_speaker: list[ndarray],
         end = individual_speaker_data.ends[i]
         end_sample = ms_to_sample(end, audio_data.samplerate)
 
-        assert start_sample < end_sample
-        print(start_sample, end_sample)
+        # assert samples are the right way round and that it doesn't go off the end of the file.
+        assert start_sample < end_sample, "start sample is after the end sample"
+        assert end_sample <= silence_block.shape[0], "end sample is placed outside of the end of the array"
 
         individual_speaker_data = all_data_for_given_speaker[i]
         silence_block[start_sample:end_sample] = individual_speaker_data

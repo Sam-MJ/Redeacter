@@ -103,8 +103,9 @@ def test_write():
     audio_edit.write_speaker_data(silence_block, all_data_for_given_speaker, individual_speaker_data, audio_data)
 
     audio_edit.write_fades(silence_block, individual_speaker_data, audio_data)
-    print(audio_data.data.shape)
-    print(silence_block.shape)
 
     output_path = audio_edit.construct_out_path(test_audio, SPEAKER)
     audio_edit.write(silence_block, audio_data, output_path)
+
+    #assert files are the same length
+    assert audio_data.data.shape == silence_block.shape
