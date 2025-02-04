@@ -20,7 +20,7 @@ class SpeakerData():
     starts: list[float]
     ends: list[float]
 
-def read(sound_file: Path) -> AudioData:
+def read_audio(sound_file: Path) -> AudioData:
     """Extract audio data from sound file"""
     with soundfile.SoundFile(sound_file, "r") as s:
         data = s.read()
@@ -33,33 +33,42 @@ def read(sound_file: Path) -> AudioData:
 
     return audio_data
 
-def NeMo_timecode_to_speaker_data(timecode: list[str]) -> dict[SpeakerData]:
+def read_rttm(rttm_file: Path):
+    "SPEAKER an4_diarize_test 1   0.220   2.875 <NA> <NA> speaker_1 <NA> <NA>"
+
+    with open(rttm_file, "r", encoding="utf-8") as f:
+       lines = f.readlines()
+
+    return lines
+
+def rttm_to_speaker_data(rttm_output: list[str]) -> dict[SpeakerData]:
     """convert nemo list of strings to dictionary of speaker data."""
     speakers = {}
 
-    for speaker in timecode:
+    for speaker in rttm_output:
         s = speaker.split(" ")
-        start = float(s[0])
-        end = float(s[1])
-        speaker_number = int(s[2].split("_")[1])
+        start = float(s[5])
+        duration = float(s[8])
+        end = start + duration
+        speaker_number = int(s[11].split("_")[1])
 
         if speaker_number not in speakers:
-            speaker_data = SpeakerData(speaker_number, [start], [end])
-            speakers[speaker_number] = speaker_data
+            individual_speaker_data = SpeakerData(speaker_number, [start], [end])
+            speakers[speaker_number] = individual_speaker_data
         else:
             speakers[speaker_number].start.extend(start)
             speakers[speaker_number].end.extend(end)
 
     return speakers
 
-def get_speaker_data(audio_data: AudioData, speaker_data: SpeakerData) -> list[ndarray]:
+def get_speaker_data(audio_data: AudioData, individual_speaker_data: SpeakerData) -> list[ndarray]:
     """returns a list of numpy views of a speaker data from array for a specific speaker""" # should this be a copy?
-    assert len(speaker_data.starts) == len(speaker_data.ends)
+    assert len(individual_speaker_data.starts) == len(individual_speaker_data.ends)
 
     all_data_for_given_speaker = []
-    for i in range(len(speaker_data.starts)):
-        start = speaker_data.starts[i]
-        end = speaker_data.ends[i]
+    for i in range(len(individual_speaker_data.starts)):
+        start = individual_speaker_data.starts[i]
+        end = individual_speaker_data.ends[i]
 
         all_data_for_given_speaker.append(audio_data.data[int(audio_data.samplerate * float(start)): int(audio_data.samplerate * float(end))])
 
@@ -69,24 +78,35 @@ def get_speaker_data(audio_data: AudioData, speaker_data: SpeakerData) -> list[n
 def generate_silence(audio_data: AudioData) -> ndarray:
     # create silence block
     silence_samples_number = audio_data.data.shape[0]
+    print(type(silence_samples_number))
     shape = (int(silence_samples_number),) + audio_data.channels
     silence_block = numpy.zeros((shape), audio_data.dtype)
 
     return silence_block
 
-def write_speaker_data(silence_block, all_data_for_given_speaker: list[ndarray], speaker_data: SpeakerData, audio_data: AudioData) -> numpy.ndarray:
+def write_speaker_data(silence_block, all_data_for_given_speaker: list[ndarray], individual_speaker_data: SpeakerData, audio_data: AudioData) -> numpy.ndarray:
     """write each of the speaker data blocks onto the block of silence"""
-    assert len(speaker_data.starts) == len(all_data_for_given_speaker)
+    # assert list of timestamps is the same as the list of data blocks
+    assert len(individual_speaker_data.starts) == len(all_data_for_given_speaker)
 
-    for i in range(len(speaker_data.starts)):
-        start = speaker_data.starts[i]
-        start_sample = int(start * audio_data.samplerate)
-        speaker_data = all_data_for_given_speaker[i]
+    def ms_to_sample(time_in_ms, samplerate):
+        return int(time_in_ms * samplerate)
 
-    block_with_speaker_data = numpy.insert(silence_block, start_sample, speaker_data)
-    return block_with_speaker_data
 
-def write_fades(block_with_speaker_data: ndarray, speaker_data: SpeakerData, audio_data: AudioData):
+    for i in range(len(individual_speaker_data.starts)):
+        start = individual_speaker_data.starts[i]
+        start_sample = ms_to_sample(start, audio_data.samplerate)
+
+        end = individual_speaker_data.ends[i]
+        end_sample = ms_to_sample(end, audio_data.samplerate)
+
+        assert start_sample < end_sample
+        print(start_sample, end_sample)
+
+        individual_speaker_data = all_data_for_given_speaker[i]
+        silence_block[start_sample:end_sample] = individual_speaker_data
+
+def write_fades(block_with_speaker_data: ndarray, individual_speaker_data: SpeakerData, audio_data: AudioData):
     """Write short fade in and fade outs on every cut."""
 
     def fade_in(audio: ndarray, start: int, fade_length: int, fade_curve: ndarray):
@@ -102,12 +122,12 @@ def write_fades(block_with_speaker_data: ndarray, speaker_data: SpeakerData, aud
     fade_samples = int(fade_length * audio_data.samplerate)
     fade_curve = numpy.linspace(0.0, 1.0, fade_samples) # has to be numbers between 1 and 0, can be log/reverse log
 
-    for i in range(len(speaker_data.starts)):
+    for i in range(len(individual_speaker_data.starts)):
         # fade in
-        start_sample = int(speaker_data.starts[i] * audio_data.samplerate)
+        start_sample = int(individual_speaker_data.starts[i] * audio_data.samplerate)
         fade_in(block_with_speaker_data, start_sample, fade_samples, fade_curve)
         # fade out
-        end_sample = int(speaker_data.ends[i] * audio_data.samplerate)
+        end_sample = int(individual_speaker_data.ends[i] * audio_data.samplerate)
         fade_out(block_with_speaker_data, end_sample, fade_samples, fade_curve)
 
 

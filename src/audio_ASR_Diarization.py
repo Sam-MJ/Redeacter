@@ -5,9 +5,7 @@ import json
 
 from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
     get_uniqname_from_filepath,
-    labels_to_rttmfile,
     rttm_to_labels,
     write_rttm2manifest,
 )
@@ -40,6 +38,9 @@ def generate_manifest(audio_filename: Path):
 
 class NeuralOfflineDiarWithASR(OfflineDiarWithASR):
     """Multiscale diariser, good for audio with overlapping speech, overwriting run_diarization to use Neural Diarizer"""
+    # TODO
+    # This needs a proper abstraction and tidying up at some point in order to use it properly with ASRD function.
+    # Neural diarizer needs a different config I think. it's not just a neat drop in replacement although it does run properly.
 
     def run_diarization(self, diar_model_config, word_timestamps) -> dict[str, list[str]]:
         """
@@ -81,7 +82,7 @@ class NeuralOfflineDiarWithASR(OfflineDiarWithASR):
             diar_hyp[uniq_id] = rttm_to_labels(pred_rttm)
         return diar_hyp, score
 
-def ASRDiarize(input_file, diarization_model: OfflineDiarWithASR):
+def ASRDiarize(input_file):
     # Note : The file needs to be mono .wav
     output_path = Path("ASRD_output")
     output_path.mkdir(parents=True, exist_ok=True)
@@ -108,7 +109,7 @@ def ASRDiarize(input_file, diarization_model: OfflineDiarWithASR):
     print("Word-level timestamps dictionary: \n", word_ts_hyp['an4_diarize_test'])
 
     # generate diarization, using either OfflineDiarWithASR which performs clusering or NeuralOfflineDiarWithASR for MMSD Neural
-    asr_diar_offline = diarization_model(config.diarizer)
+    asr_diar_offline = OfflineDiarWithASR(config.diarizer)
     asr_diar_offline.word_ts_anchor_offset = asr_decoder_ts.word_ts_anchor_offset
 
     diar_hyp, diar_score = asr_diar_offline.run_diarization(config, word_ts_hyp)
