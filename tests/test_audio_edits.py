@@ -61,6 +61,8 @@ def test_write_speaker_data():
     start_sample = int(speaker0_data.starts[0] * audio_data.samplerate)
     assert block_with_speaker_data[start_sample] == all_data_for_given_speaker[0][0]
 
+    # what happens if the speaker data is right at the end, is a timestamp accurate enough to fit the right samples?
+
 def test_write_fades():
     audio_data = audio_edit.read(test_file)
     silence_block = audio_edit.generate_silence(audio_data)

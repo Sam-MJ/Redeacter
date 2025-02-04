@@ -3,3 +3,4 @@ __pycache__
 scribbles.py
 .venv
 .pytest_cache
+ASRD_output/
